@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Trash2 } from 'lucide-react';
 
 interface BoardImage {
   id: string;
@@ -142,9 +143,9 @@ export const App: React.FC = () => {
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // GitHub token for direct in-browser commits (from .env.local or localStorage)
+  // GitHub token stored ONLY in your private browser localStorage (never bundled or exposed)
   const [githubToken, setGithubToken] = useState<string>(() => {
-    return import.meta.env.VITE_GITHUB_TOKEN || localStorage.getItem('kdb_gh_token') || '';
+    return localStorage.getItem('kdb_gh_token') || '';
   });
 
   // Track window resize to fluidly adjust columns
@@ -284,6 +285,49 @@ export const App: React.FC = () => {
     }
   };
 
+  // Dev-Only Delete handler (Figma node 14:2121)
+  const handleDeleteImage = async (imgToDelete: BoardImage, e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't open lightbox
+
+    const confirmed = window.confirm('Are you sure you want to delete this poster?');
+    if (!confirmed) return;
+
+    // 1. Remove from active UI state immediately
+    setImages((prev) => prev.filter((img) => img.id !== imgToDelete.id));
+
+    // 2. If it's a GitHub image and token is saved, delete from remote repo too
+    try {
+      const match = imgToDelete.url.match(/Visual-design\/([^?#]+)/);
+      if (match && match[1] && githubToken) {
+        const filename = match[1];
+        const getFileRes = await fetch(
+          `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/Visual-design/${filename}`,
+          { headers: { Authorization: `Bearer ${githubToken}` } }
+        );
+        if (getFileRes.ok) {
+          const fileData = await getFileRes.json();
+          await fetch(
+            `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/Visual-design/${filename}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${githubToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                message: `Delete poster: ${filename}`,
+                sha: fileData.sha,
+                branch: 'main',
+              }),
+            }
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('Could not delete from remote GitHub, removed from local view.', err);
+    }
+  };
+
   /**
    * Adaptive column count:
    * - Mobile (<680px): exactly 2 columns
@@ -365,6 +409,20 @@ export const App: React.FC = () => {
                       fetchPriority={isLCP ? 'high' : undefined}
                       decoding="async"
                     />
+
+                    {/* Dev-Only Hover Overlay with Delete Button (Figma node 14:2121) */}
+                    {isDevMode && (
+                      <div className="dev-card-overlay">
+                        <button
+                          className="dev-delete-btn"
+                          onClick={(e) => handleDeleteImage(img, e)}
+                          title="Delete poster"
+                        >
+                          <Trash2 size={18} />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

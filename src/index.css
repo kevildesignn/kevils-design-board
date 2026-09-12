@@ -133,6 +133,55 @@ html, body {
   transform: scale(1.015);
 }
 
+/* Dev-Only Card Hover Overlay & Delete Button (Exact Figma node 14:2121) */
+.dev-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+  z-index: 5;
+}
+
+.board-item:hover .dev-card-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.dev-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1.5px solid #d2233e;
+  color: #d2233e;
+  font-family: 'Poppins', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  user-select: none;
+}
+
+.dev-delete-btn:hover {
+  background: rgba(210, 35, 62, 0.22);
+  transform: scale(1.06);
+  box-shadow: 0 8px 28px rgba(210, 35, 62, 0.35);
+}
+
+.dev-delete-btn:active {
+  transform: scale(0.97);
+}
+
 /* Upload Modal (Dev Only) */
 .upload-modal-backdrop {
   position: fixed;
