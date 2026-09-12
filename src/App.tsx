@@ -99,14 +99,22 @@ export const App: React.FC = () => {
     typeof window !== 'undefined' ? window.innerWidth : 1920
   );
 
-  // Development/Admin detection: ONLY visible on localhost or with ?admin=true
-  const isDevMode = useMemo(() => {
+  // Development/Admin detection: true on localhost or if ?admin=true is present
+  const isAdminEligible = useMemo(() => {
     if (typeof window === 'undefined') return false;
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const hasAdminQuery = window.location.search.includes('admin=true');
     const hasAdminStorage = localStorage.getItem('kdb_is_admin') === 'true';
     return isLocal || hasAdminQuery || hasAdminStorage;
   }, []);
+
+  // Public visitor preview toggle: lets admin preview what normal visitors see
+  const [isPreviewUser, setIsPreviewUser] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.location.search.includes('view=user');
+  });
+
+  const isDevMode = isAdminEligible && !isPreviewUser;
 
   // Upload modal state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -477,6 +485,16 @@ export const App: React.FC = () => {
               <span className={`dev-token-dot ${githubToken ? 'connected' : 'disconnected'}`} />
               <span>{githubToken ? 'GitHub Connected' : 'Connect GitHub'}</span>
             </button>
+            <button
+              className="dev-preview-toggle-btn"
+              onClick={() => {
+                setIsPreviewUser(true);
+                showToast('info', 'Switched to Public User View (click bottom-left button to return to Dev Mode)');
+              }}
+              title="Preview what public visitors see"
+            >
+              👁 View as Public
+            </button>
           </div>
         )}
       </header>
@@ -708,6 +726,20 @@ export const App: React.FC = () => {
             <img src={selectedImage} alt="" className="lightbox-image" />
           </div>
         </div>
+      )}
+
+      {/* Floating switcher to return to Dev Mode when in public preview */}
+      {isAdminEligible && isPreviewUser && (
+        <button
+          className="dev-floating-return-btn"
+          onClick={() => {
+            setIsPreviewUser(false);
+            showToast('info', 'Returned to Dev Mode');
+          }}
+          title="Return to Dev Mode"
+        >
+          👁 Viewing as Public Visitor • <strong>Switch to Dev Mode</strong>
+        </button>
       )}
 
       {/* Dev-Only Toast Notification */}
