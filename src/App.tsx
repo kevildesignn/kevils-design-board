@@ -383,10 +383,7 @@ export const App: React.FC = () => {
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // GitHub token stored ONLY in your private browser localStorage (never bundled or exposed)
-  const [githubToken, setGithubToken] = useState<string>(() => {
-    return localStorage.getItem('kdb_gh_token') || '';
-  });
+  // Serverless backend handles GitHub commits securely without browser tokens
 
   // Track window resize to fluidly adjust columns
   useEffect(() => {
@@ -445,7 +442,7 @@ export const App: React.FC = () => {
           }));
 
         setImages(remoteImages);
-      } catch (err) {
+      } catch {
         // Fallback silently
       }
     };
@@ -453,23 +450,9 @@ export const App: React.FC = () => {
     fetchGitHubImages();
   }, []);
 
-  // Handle direct in-browser commit to GitHub repository (Original Quality)
+  // Handle secure upload via Vercel serverless function (Original Quality)
   const handleDirectGitHubUpload = async () => {
     if (!uploadFile) return;
-
-    let token = githubToken || localStorage.getItem('kdb_gh_token') || '';
-    if (!token) {
-      const enteredToken = window.prompt(
-        'Please enter your GitHub Personal Access Token (repo scope) to upload directly to GitHub:'
-      );
-      if (!enteredToken || !enteredToken.trim()) {
-        showToast('error', 'Upload cancelled: GitHub token required.');
-        return;
-      }
-      token = enteredToken.trim();
-      setGithubToken(token);
-      localStorage.setItem('kdb_gh_token', token);
-    }
 
     setIsUploading(true);
     setUploadStatus('Reading original image data...');
@@ -486,44 +469,36 @@ export const App: React.FC = () => {
         reader.readAsDataURL(uploadFile);
       });
 
-      setUploadStatus('Committing directly to GitHub Visual-design...');
+      setUploadStatus('Uploading securely to Visual-design...');
 
       // Clean filename
       const cleanName = uploadFile.name.replace(/\s+/g, '-');
       const filename = `${Date.now()}_${cleanName}`;
-      const url = `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/Visual-design/${filename}`;
 
-      const res = await fetch(url, {
-        method: 'PUT',
+      const res = await fetch('/api/upload', {
+        method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
-          Accept: 'application/vnd.github.v3+json',
         },
         body: JSON.stringify({
-          message: `Upload poster: ${filename}`,
+          filename,
           content: base64,
-          branch: 'main',
-          committer: {
-            name: 'Kevil Darji',
-            email: 'kevildesignn@gmail.com',
-          },
-          author: {
-            name: 'Kevil Darji',
-            email: 'kevildesignn@gmail.com',
-          },
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || 'GitHub API error.');
+        throw new Error(data.error || 'Upload failed.');
       }
 
-      setUploadStatus('Committed! Generating CDN link...');
+      const returnedFilename = data.filename || filename;
+      const cdnUrl = data.cdnUrl || `https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/Visual-design/${returnedFilename}`;
+
+      setUploadStatus('Uploaded! Generating CDN link...');
 
       // Ensure this filename is not marked as deleted
-      unrecordDeletedFile(filename);
+      unrecordDeletedFile(returnedFilename);
 
       // Measure natural dimensions so skeleton and layout are instantly exact
       const dims = await new Promise<{ width: number; height: number; aspectRatio: number }>((resolve) => {
@@ -538,12 +513,10 @@ export const App: React.FC = () => {
         i.src = uploadPreview || URL.createObjectURL(uploadFile);
       });
 
-      saveImageRatio(filename, dims.aspectRatio);
-
-      const cdnUrl = `https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/Visual-design/${filename}`;
+      saveImageRatio(returnedFilename, dims.aspectRatio);
 
       const newImg: BoardImage = {
-        id: `gh-${filename}`,
+        id: `gh-${returnedFilename}`,
         url: cdnUrl,
         width: dims.width,
         height: dims.height,
@@ -554,7 +527,7 @@ export const App: React.FC = () => {
       setImages((prev) => [newImg, ...prev]);
 
       setUploadStatus('Successfully added to online board!');
-      showToast('success', `"${filename}" uploaded to GitHub!`);
+      showToast('success', `"${returnedFilename}" uploaded successfully!`);
       setTimeout(() => {
         setIsUploadModalOpen(false);
         setUploadFile(null);
@@ -563,7 +536,7 @@ export const App: React.FC = () => {
       }, 1000);
     } catch (err: any) {
       setUploadStatus(`Error: ${err.message || 'Upload failed'}`);
-      showToast('error', `Upload failed: ${err.message}`);
+      showToast('error', `Upload failed: ${err.message || 'Unknown error'}`);
     } finally {
       setIsUploading(false);
     }
@@ -592,97 +565,32 @@ export const App: React.FC = () => {
       return;
     }
 
-    // It's a GitHub file in Visual-design/
-    let token = githubToken || localStorage.getItem('kdb_gh_token') || '';
-    if (!token) {
-      const enteredToken = window.prompt(
-        `To delete "${filename}" from GitHub, please enter your GitHub Personal Access Token (repo scope):`
-      );
-      if (!enteredToken || !enteredToken.trim()) {
-        showToast('error', 'Deletion cancelled: GitHub token required.');
-        return;
-      }
-      token = enteredToken.trim();
-      setGithubToken(token);
-      localStorage.setItem('kdb_gh_token', token);
-    }
-
+    // It's a GitHub file in Visual-design/ - delete securely via serverless backend
     setDeletingId(imgToDelete.id);
-    showToast('loading', `Deleting "${filename}" from GitHub repository...`);
+    showToast('loading', `Deleting "${filename}" securely...`);
 
     try {
-      // 1. Fetch file SHA from GitHub repository on main branch
-      const getFileRes = await fetch(
-        `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/Visual-design/${encodeURIComponent(filename)}?ref=main`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github.v3+json',
-          },
-        }
-      );
+      const deleteRes = await fetch('/api/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filename }),
+      });
 
-      if (getFileRes.status === 404) {
-        // File already absent from GitHub
-        recordDeletedFile(filename);
-        setImages((prev) => prev.filter((img) => img.id !== imgToDelete.id));
-        showToast('info', `"${filename}" was already removed from GitHub. Removed from board.`);
-        return;
-      }
-
-      if (getFileRes.status === 401 || getFileRes.status === 403) {
-        const errJson = await getFileRes.json().catch(() => ({}));
-        showToast('error', `GitHub Token Error: ${errJson.message || 'Token lacks repo permissions or is invalid.'}`);
-        return;
-      }
-
-      if (!getFileRes.ok) {
-        const errJson = await getFileRes.json().catch(() => ({}));
-        showToast('error', `GitHub Error (${getFileRes.status}): ${errJson.message || 'Could not locate file.'}`);
-        return;
-      }
-
-      const fileData = await getFileRes.json();
-      const fileSha = fileData.sha;
-
-      // 2. Send DELETE request to GitHub API contents endpoint
-      const deleteRes = await fetch(
-        `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/Visual-design/${encodeURIComponent(filename)}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/vnd.github.v3+json',
-          },
-          body: JSON.stringify({
-            message: `Delete poster: ${filename}`,
-            sha: fileSha,
-            branch: 'main',
-            committer: {
-              name: 'Kevil Darji',
-              email: 'kevildesignn@gmail.com',
-            },
-            author: {
-              name: 'Kevil Darji',
-              email: 'kevildesignn@gmail.com',
-            },
-          }),
-        }
-      );
+      const data = await deleteRes.json().catch(() => ({}));
 
       if (!deleteRes.ok) {
-        const errJson = await deleteRes.json().catch(() => ({}));
-        showToast('error', `GitHub Delete Failed: ${errJson.message || 'Could not delete file from repository.'}`);
+        showToast('error', `Delete failed: ${data.error || 'Could not delete file.'}`);
         return;
       }
 
-      // 3. Deletion verified on GitHub! Record deletion and remove from board
+      // Deletion verified! Record deletion and remove from board
       recordDeletedFile(filename);
       setImages((prev) => prev.filter((img) => img.id !== imgToDelete.id));
-      showToast('success', `"${filename}" deleted from GitHub repository!`);
+      showToast('success', `"${filename}" removed successfully!`);
     } catch (err: any) {
-      showToast('error', `Network error during delete: ${err.message || 'Please try again.'}`);
+      showToast('error', `Delete error: ${err.message || 'Please try again.'}`);
     } finally {
       setDeletingId(null);
     }
@@ -752,29 +660,9 @@ export const App: React.FC = () => {
             <button
               className="dev-upload-btn"
               onClick={() => setIsUploadModalOpen(true)}
-              title="Upload new poster directly to GitHub Visual-design"
+              title="Upload new poster directly to Visual-design"
             >
               + Upload Poster
-            </button>
-            <button
-              className="dev-token-btn"
-              onClick={() => {
-                const current = localStorage.getItem('kdb_gh_token') || '';
-                const entered = window.prompt(
-                  'GitHub Personal Access Token (repo scope):\nUsed to commit uploads and delete posters directly on GitHub.',
-                  current
-                );
-                if (entered !== null) {
-                  const cleaned = entered.trim();
-                  localStorage.setItem('kdb_gh_token', cleaned);
-                  setGithubToken(cleaned);
-                  showToast('success', cleaned ? 'GitHub token saved!' : 'GitHub token cleared.');
-                }
-              }}
-              title="Manage GitHub Token"
-            >
-              <span className={`dev-token-dot ${githubToken ? 'connected' : 'disconnected'}`} />
-              <span>{githubToken ? 'GitHub Connected' : 'Connect GitHub'}</span>
             </button>
             <button
               className="dev-preview-toggle-btn"
@@ -931,27 +819,7 @@ export const App: React.FC = () => {
               </p>
             )}
 
-            {!githubToken && (
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#444444', marginBottom: '6px' }}>
-                  GitHub Personal Access Token (repo scope)
-                </label>
-                <input
-                  type="password"
-                  placeholder="ghp_xxxxxxxxxxxx"
-                  value={githubToken}
-                  onChange={(e) => setGithubToken(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #dddddd',
-                    fontSize: '13px',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-            )}
+
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
