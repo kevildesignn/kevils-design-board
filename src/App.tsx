@@ -450,30 +450,79 @@ export const App: React.FC = () => {
     fetchGitHubImages();
   }, []);
 
-  // Handle secure upload via Vercel serverless function (Original Quality)
-  const handleDirectGitHubUpload = async () => {
-    if (!uploadFile) return;
-
-    setIsUploading(true);
-    setUploadStatus('Reading original image data...');
-
-    try {
-      // 1. Read original file as base64 without ANY quality loss or recompression
-      const base64 = await new Promise<string>((resolve, reject) => {
+  // Helper to read and prepare base64 payload safely within Vercel limits
+  const prepareBase64Payload = async (file: File): Promise<{ base64: string; filename: string }> => {
+    // If under 3.2 MB, keep 100% untouched original raw binary
+    if (file.size <= 3.2 * 1024 * 1024) {
+      const rawBase64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
           const res = reader.result as string;
           resolve(res.split(',')[1]);
         };
         reader.onerror = reject;
-        reader.readAsDataURL(uploadFile);
+        reader.readAsDataURL(file);
       });
+      return { base64: rawBase64, filename: file.name.replace(/\s+/g, '-') };
+    }
+
+    // If > 3.2 MB, safely optimize into high-res JPEG to fit under Vercel's 4.5 MB serverless limit
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        let { naturalWidth: width, naturalHeight: height } = img;
+        const MAX_DIM = 2800; // Ultra-crisp Retina 4K
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas context not available'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        const base64 = dataUrl.split(',')[1];
+        const cleanName = file.name.replace(/\s+/g, '-').replace(/\.[^/.]+$/, '') + '.jpg';
+        resolve({ base64, filename: cleanName });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Failed to load image for optimization'));
+      };
+      img.src = objectUrl;
+    });
+  };
+
+  // Handle secure upload via Vercel serverless function (Original Quality)
+  const handleDirectGitHubUpload = async () => {
+    if (!uploadFile) return;
+
+    setIsUploading(true);
+    setUploadStatus(
+      uploadFile.size > 3.2 * 1024 * 1024
+        ? 'Optimizing high-res image for cloud upload...'
+        : 'Reading original image data...'
+    );
+
+    try {
+      const { base64, filename: preparedFilename } = await prepareBase64Payload(uploadFile);
+      const filename = `${Date.now()}_${preparedFilename}`;
 
       setUploadStatus('Uploading securely to published-designs...');
-
-      // Clean filename
-      const cleanName = uploadFile.name.replace(/\s+/g, '-');
-      const filename = `${Date.now()}_${cleanName}`;
 
       const res = await fetch('/api/upload', {
         method: 'POST',
@@ -486,10 +535,22 @@ export const App: React.FC = () => {
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      if (res.status === 413) {
+        throw new Error('Image size exceeded Vercel server limit (max 4.5MB).');
+      }
+
+      let data: any = {};
+      const responseText = await res.text().catch(() => '');
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        if (!res.ok) {
+          throw new Error(responseText || `Upload failed (Status ${res.status})`);
+        }
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || 'Upload failed.');
+        throw new Error(data.error || `Upload failed (${res.status})`);
       }
 
       const returnedFilename = data.filename || filename;
