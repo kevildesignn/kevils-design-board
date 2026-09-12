@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Trash2, Loader2 } from 'lucide-react';
+import { Trash2, Loader2, Eye, EyeOff, Lock, LogOut, ArrowLeft } from 'lucide-react';
 
 interface BoardImage {
   id: string;
@@ -192,6 +192,122 @@ const BoardCard: React.FC<BoardCardProps> = ({
   );
 };
 
+async function sha256(message: string): Promise<string> {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+const ADMIN_EMAIL_HASH = '3ec65ef31f52e274cc37d602050638a65eb9511dee217ee26bdbb4ef0e95ad6f';
+const ADMIN_PASSWORD_HASH = '29242264f210efaeed7c7a149670431c38cbe813b775748f9d355d08d4af9f5a';
+
+interface AdminLoginProps {
+  onLoginSuccess: () => void;
+  onBackToHome: () => void;
+}
+
+const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackToHome }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsVerifying(true);
+
+    try {
+      const emailH = await sha256(email.trim().toLowerCase());
+      const passH = await sha256(password);
+
+      if (emailH === ADMIN_EMAIL_HASH && passH === ADMIN_PASSWORD_HASH) {
+        localStorage.setItem('kdb_admin_authenticated', 'true');
+        onLoginSuccess();
+      } else {
+        setError('Incorrect email address or password.');
+      }
+    } catch {
+      setError('An error occurred during authentication.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  return (
+    <div className="admin-login-wrapper">
+      <div className="admin-login-card">
+        <div className="admin-login-header">
+          <div className="admin-login-badge">
+            <Lock size={12} />
+            <span>Admin Portal</span>
+          </div>
+          <h2 className="admin-login-title">Kevil’s Visual board</h2>
+          <p className="admin-login-desc">Sign in to manage visual posters and upload designs</p>
+        </div>
+
+        {error && <div className="admin-error-banner">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="admin-form-group">
+            <label className="admin-label">Email Address</label>
+            <input
+              type="email"
+              className="admin-input"
+              placeholder="kevildesignn@gmail.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+
+          <div className="admin-form-group">
+            <label className="admin-label">Password</label>
+            <div className="admin-input-wrapper">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                className="admin-input admin-input-password"
+                placeholder="••••••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="admin-password-toggle"
+                onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" className="admin-submit-btn" disabled={isVerifying}>
+            {isVerifying ? (
+              <>
+                <Loader2 size={16} className="spin-icon" />
+                <span>Verifying...</span>
+              </>
+            ) : (
+              <span>Sign In to Admin</span>
+            )}
+          </button>
+        </form>
+
+        <button type="button" className="admin-back-btn" onClick={onBackToHome}>
+          <ArrowLeft size={14} />
+          <span>Back to Public Portfolio</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const App: React.FC = () => {
   const [images, setImages] = useState<BoardImage[]>(getInitialImages);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -219,22 +335,45 @@ export const App: React.FC = () => {
     typeof window !== 'undefined' ? window.innerWidth : 1920
   );
 
-  // Development/Admin detection: true on localhost or if ?admin=true is present
-  const isAdminEligible = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const hasAdminQuery = window.location.search.includes('admin=true');
-    const hasAdminStorage = localStorage.getItem('kdb_is_admin') === 'true';
-    return isLocal || hasAdminQuery || hasAdminStorage;
-  }, []);
-
-  // Public visitor preview toggle: lets admin preview what normal visitors see
-  const [isPreviewUser, setIsPreviewUser] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.location.search.includes('view=user');
+  // Path tracking: recognizes /admin directly
+  const [currentPath, setCurrentPath] = useState(() => {
+    if (typeof window === 'undefined') return '/';
+    return window.location.pathname;
   });
 
-  const isDevMode = isAdminEligible && !isPreviewUser;
+  // Admin authentication state
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('kdb_admin_authenticated') === 'true';
+  });
+
+  // Admin route active if pathname starts with /admin or is /admin
+  const isAdminRoute = currentPath.toLowerCase().startsWith('/admin');
+
+  // Dev/Admin mode controls are active ONLY when user is authenticated on the admin route
+  const isDevMode = isAdminRoute && isAdminAuthenticated;
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (path: string) => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', path);
+      setCurrentPath(path);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('kdb_admin_authenticated');
+    setIsAdminAuthenticated(false);
+    navigateTo('/');
+    showToast('info', 'Logged out of Admin.');
+  };
 
   // Upload modal state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -588,14 +727,27 @@ export const App: React.FC = () => {
     return cols;
   }, [images, columnCount]);
 
+  // If on /admin and not yet authenticated, render the password-protected AdminLogin screen
+  if (isAdminRoute && !isAdminAuthenticated) {
+    return (
+      <AdminLogin
+        onLoginSuccess={() => {
+          setIsAdminAuthenticated(true);
+          showToast('success', 'Welcome, Kevil!');
+        }}
+        onBackToHome={() => navigateTo('/')}
+      />
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', width: '100%' }}>
-      {/* Header with Title and Dev-Only Upload Button */}
+      {/* Header with Title and Dev/Admin Controls */}
       <header className="board-header">
         <h1 className="board-title">Kevil’s Visual board</h1>
 
-        {/* Development side upload button (ONLY visible on your side / localhost) */}
-        {isDevMode && (
+        {/* Admin Header Controls: visible only when authenticated on /admin */}
+        {isDevMode ? (
           <div className="dev-upload-badge">
             <button
               className="dev-upload-btn"
@@ -626,15 +778,33 @@ export const App: React.FC = () => {
             </button>
             <button
               className="dev-preview-toggle-btn"
-              onClick={() => {
-                setIsPreviewUser(true);
-                showToast('info', 'Switched to Public User View (click bottom-left button to return to Dev Mode)');
-              }}
-              title="Preview what public visitors see"
+              onClick={() => navigateTo('/')}
+              title="View Public Portfolio"
             >
-              👁 View as Public
+              👁 Public Portfolio
+            </button>
+            <button
+              className="dev-preview-toggle-btn"
+              onClick={handleLogout}
+              title="Log out of Admin"
+            >
+              <LogOut size={12} />
+              <span>Log Out</span>
             </button>
           </div>
+        ) : (
+          isAdminAuthenticated && (
+            <div className="dev-upload-badge">
+              <button
+                className="dev-preview-toggle-btn"
+                onClick={() => navigateTo('/admin')}
+                title="Go to Admin Panel"
+              >
+                <Lock size={12} />
+                <span>Admin Dashboard</span>
+              </button>
+            </div>
+          )
         )}
       </header>
 
@@ -837,20 +1007,6 @@ export const App: React.FC = () => {
             <img src={selectedImage} alt="" className="lightbox-image" />
           </div>
         </div>
-      )}
-
-      {/* Floating switcher to return to Dev Mode when in public preview */}
-      {isAdminEligible && isPreviewUser && (
-        <button
-          className="dev-floating-return-btn"
-          onClick={() => {
-            setIsPreviewUser(false);
-            showToast('info', 'Returned to Dev Mode');
-          }}
-          title="Return to Dev Mode"
-        >
-          👁 Viewing as Public Visitor • <strong>Switch to Dev Mode</strong>
-        </button>
       )}
 
       {/* Dev-Only Toast Notification */}
