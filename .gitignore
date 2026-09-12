@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local private designs workspace (never commit or publish to web)
+Visual-design/

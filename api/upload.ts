@@ -54,7 +54,7 @@ export default async function handler(req: any, res: any) {
     const safeFilename = /^\d+_/.test(cleanName)
       ? cleanName
       : `${Date.now()}_${cleanName}`;
-    const targetUrl = `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/Visual-design/${safeFilename}`;
+    const targetUrl = `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/published-designs/${safeFilename}`;
 
     const ghRes = await fetch(targetUrl, {
       method: 'PUT',
@@ -91,7 +91,7 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    const cdnUrl = `https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/Visual-design/${safeFilename}`;
+    const cdnUrl = `https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/published-designs/${safeFilename}`;
     const result = {
       success: true,
       filename: safeFilename,

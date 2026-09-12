@@ -50,7 +50,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // 1. Get file SHA from GitHub
-    const getUrl = `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/Visual-design/${encodeURIComponent(filename)}?ref=main`;
+    const getUrl = `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/published-designs/${encodeURIComponent(filename)}?ref=main`;
     const getRes = await fetch(getUrl, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -82,7 +82,7 @@ export default async function handler(req: any, res: any) {
     const sha = fileData.sha;
 
     // 2. Delete file using SHA
-    const deleteUrl = `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/Visual-design/${encodeURIComponent(filename)}`;
+    const deleteUrl = `https://api.github.com/repos/kevildesignn/kevils-design-board/contents/published-designs/${encodeURIComponent(filename)}`;
     const delRes = await fetch(deleteUrl, {
       method: 'DELETE',
       headers: {

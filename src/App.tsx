@@ -9,25 +9,25 @@ interface BoardImage {
   height?: number;
 }
 
-// Initial images starting with Kevil's Visual-design artifacts served via CDN
+// Initial images starting with Kevil's published-designs artifacts served via CDN
 const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '01',
-    url: 'https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/Visual-design/01.png',
+    url: 'https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/published-designs/01.png',
     width: 2400,
     height: 1582,
     aspectRatio: 2400 / 1582,
   },
   {
     id: '02',
-    url: 'https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/Visual-design/02.png',
+    url: 'https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/published-designs/02.png',
     width: 1472,
     height: 1838,
     aspectRatio: 1472 / 1838,
   },
   {
     id: '03',
-    url: 'https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/Visual-design/03.png',
+    url: 'https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/published-designs/03.png',
     width: 1472,
     height: 1650,
     aspectRatio: 1472 / 1650,
@@ -63,7 +63,7 @@ const unrecordDeletedFile = (filename: string) => {
 const getInitialImages = (): BoardImage[] => {
   const deleted = getDeletedFiles();
   return DEFAULT_IMAGES.filter((img) => {
-    const match = img.url.match(/Visual-design\/([^?#]+)/);
+    const match = img.url.match(/(?:published-designs|Visual-design)\/([^?#]+)/);
     if (match) {
       const filename = decodeURIComponent(match[1]);
       return !deleted.includes(filename);
@@ -132,7 +132,7 @@ const BoardCard: React.FC<BoardCardProps> = ({
     const natural = e.currentTarget.naturalWidth / e.currentTarget.naturalHeight;
     if (natural) {
       setAspectRatio(natural);
-      const match = img.url.match(/Visual-design\/([^?#]+)/);
+      const match = img.url.match(/(?:published-designs|Visual-design)\/([^?#]+)/);
       if (match) {
         saveImageRatio(decodeURIComponent(match[1]), natural);
       }
@@ -404,7 +404,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Fetch all images from GitHub repository Visual-design folder
+  // Fetch all images from GitHub repository published-designs folder
   useEffect(() => {
     const fetchGitHubImages = async () => {
       try {
@@ -417,7 +417,7 @@ export const App: React.FC = () => {
         }
 
         const res = await fetch(
-          'https://api.github.com/repos/kevildesignn/kevils-design-board/contents/Visual-design',
+          'https://api.github.com/repos/kevildesignn/kevils-design-board/contents/published-designs',
           { headers }
         );
         if (!res.ok) return;
@@ -437,7 +437,7 @@ export const App: React.FC = () => {
           })
           .map((file: any) => ({
             id: `gh-${file.name}`,
-            url: `https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/Visual-design/${file.name}?v=${file.sha?.slice(0, 7) || Date.now()}`,
+            url: `https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/published-designs/${file.name}?v=${file.sha?.slice(0, 7) || Date.now()}`,
             aspectRatio: getImageRatio(file.name),
           }));
 
@@ -469,7 +469,7 @@ export const App: React.FC = () => {
         reader.readAsDataURL(uploadFile);
       });
 
-      setUploadStatus('Uploading securely to Visual-design...');
+      setUploadStatus('Uploading securely to published-designs...');
 
       // Clean filename
       const cleanName = uploadFile.name.replace(/\s+/g, '-');
@@ -493,7 +493,7 @@ export const App: React.FC = () => {
       }
 
       const returnedFilename = data.filename || filename;
-      const cdnUrl = data.cdnUrl || `https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/Visual-design/${returnedFilename}`;
+      const cdnUrl = data.cdnUrl || `https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/published-designs/${returnedFilename}`;
 
       setUploadStatus('Uploaded! Generating CDN link...');
 
@@ -547,25 +547,25 @@ export const App: React.FC = () => {
     e.stopPropagation(); // Don't open lightbox
     if (deletingId) return; // Prevent concurrent deletes
 
-    // Extract filename if it's a Visual-design image
-    const match = imgToDelete.url.match(/Visual-design\/([^?#]+)/);
+    // Extract filename if it's a published-designs image
+    const match = imgToDelete.url.match(/(?:published-designs|Visual-design)\/([^?#]+)/);
     const filename = match ? decodeURIComponent(match[1]) : null;
 
     const confirmMsg = filename
-      ? `Are you sure you want to permanently delete "${filename}"?\n\nThis will remove the file from your GitHub repository (Visual-design/${filename}).`
+      ? `Are you sure you want to permanently delete "${filename}"?\n\nThis will remove the file from your GitHub repository (published-designs/${filename}).`
       : 'Are you sure you want to remove this poster from the board?';
 
     const confirmed = window.confirm(confirmMsg);
     if (!confirmed) return;
 
-    // If it's a demo card not in Visual-design on GitHub, just remove from view
+    // If it's a demo card not in published-designs on GitHub, just remove from view
     if (!filename) {
       setImages((prev) => prev.filter((img) => img.id !== imgToDelete.id));
       showToast('info', 'Demo poster removed from board.');
       return;
     }
 
-    // It's a GitHub file in Visual-design/ - delete securely via serverless backend
+    // It's a GitHub file in published-designs/ - delete securely via serverless backend
     setDeletingId(imgToDelete.id);
     showToast('loading', `Deleting "${filename}" securely...`);
 
@@ -660,7 +660,7 @@ export const App: React.FC = () => {
             <button
               className="dev-upload-btn"
               onClick={() => setIsUploadModalOpen(true)}
-              title="Upload new poster directly to Visual-design"
+              title="Upload new poster directly to published-designs"
             >
               + Upload Poster
             </button>
@@ -744,7 +744,7 @@ export const App: React.FC = () => {
                   Upload Poster to GitHub
                 </h3>
                 <p style={{ fontSize: '12px', color: '#666666' }}>
-                  Commits directly to <code>Visual-design/</code> in 100% original quality
+                  Commits directly to <code>published-designs/</code> in 100% original quality
                 </p>
               </div>
               <button
