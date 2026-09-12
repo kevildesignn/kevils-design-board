@@ -78,10 +78,41 @@ html, body {
   opacity: 0.9;
 }
 
-.dev-sync-status {
-  font-size: 11px;
-  color: #888888;
-  font-family: monospace;
+.dev-token-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid #e2e2e2;
+  color: #555555;
+  padding: 7px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dev-token-btn:hover {
+  border-color: #000000;
+  color: #000000;
+}
+
+.dev-token-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dev-token-dot.connected {
+  background-color: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+
+.dev-token-dot.disconnected {
+  background-color: #f59e0b;
 }
 
 /* Full Width Grid Container with padding equal to grid gap */
@@ -180,6 +211,19 @@ html, body {
 
 .dev-delete-btn:active {
   transform: scale(0.97);
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Upload Modal (Dev Only) */
@@ -286,6 +330,53 @@ html, body {
 @keyframes scaleUp {
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* Dev-Only Notification Toast */
+.dev-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 2000;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  background: #111111;
+  color: #ffffff;
+  border-radius: 9999px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+  animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.dev-toast.toast-success {
+  border: 1px solid #10b981;
+}
+
+.dev-toast.toast-error {
+  border: 1px solid #ef4444;
+}
+
+.dev-toast.toast-loading {
+  border: 1px solid #3b82f6;
+}
+
+.dev-toast.toast-info {
+  border: 1px solid #6b7280;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @media (max-width: 680px) {
