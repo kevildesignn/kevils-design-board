@@ -15,21 +15,21 @@ const DEFAULT_IMAGES: BoardImage[] = [
     url: '/Visual-design/01.png',
     width: 2400,
     height: 1582,
-    aspectRatio: 2400 / 1582, // 1.52 (Horizontal - middle height)
+    aspectRatio: 2400 / 1582, // Horizontal
   },
   {
     id: '02',
     url: '/Visual-design/02.png',
     width: 1472,
     height: 1838,
-    aspectRatio: 1472 / 1838, // 0.80 (Portrait)
+    aspectRatio: 1472 / 1838, // Portrait
   },
   {
     id: '03',
     url: '/Visual-design/03.png',
     width: 1472,
     height: 1650,
-    aspectRatio: 1472 / 1650, // 0.89 (Portrait)
+    aspectRatio: 1472 / 1650, // Portrait
   },
   {
     id: '04',
@@ -44,7 +44,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '06',
     url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 933, // 1.50 (Horizontal - middle height)
+    aspectRatio: 1400 / 933, // Horizontal
   },
   {
     id: '07',
@@ -59,7 +59,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '09',
     url: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 1050, // 1.33 (Horizontal - middle height)
+    aspectRatio: 1400 / 1050, // Horizontal
   },
   {
     id: '10',
@@ -89,7 +89,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '15',
     url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 1050, // 1.33 (Horizontal - middle height)
+    aspectRatio: 1400 / 1050, // Horizontal
   },
   {
     id: '16',
@@ -104,7 +104,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '18',
     url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 1000, // 1.40 (Horizontal - middle height)
+    aspectRatio: 1400 / 1000, // Horizontal
   },
   {
     id: '19',
@@ -178,32 +178,28 @@ export const App: React.FC = () => {
   }, []);
 
   /**
-   * Column count:
+   * Adaptive column count:
    * - Mobile (<680px): exactly 2 columns
-   * - iPad portrait (680px - 960px): 3 columns
-   * - iPad landscape (961px - 1200px): 4 columns
-   * - Desktop & 27" screens (>= 1201px): 5 columns
+   * - iPad portrait (<1000px): 3 columns
+   * - Desktop & 27" screens: 5 columns
    */
   const columnCount = useMemo(() => {
     if (windowWidth < 680) return 2;
-    if (windowWidth < 960) return 3;
-    if (windowWidth < 1200) return 4;
+    if (windowWidth < 1000) return 3;
     return 5;
   }, [windowWidth]);
 
   /**
-   * Balanced Column Distribution:
-   * Horizontal artworks have a boosted height factor (~0.88), placing them in the
-   * sweet spot between small and giant, while keeping the columns level.
+   * Smart Waterfall:
+   * Uses natural height and distributes items so tall and horizontal posters
+   * alternate cleanly, with zero artificial background or letterbox bars.
    */
   const columns = useMemo(() => {
     const cols: BoardImage[][] = Array.from({ length: columnCount }, () => []);
     const heights = new Array(columnCount).fill(0);
 
     images.forEach((img) => {
-      const isHorizontal = img.aspectRatio && img.aspectRatio >= 1.25;
-      // In the middle: ~0.88 factor for horizontal, ~1.25 to 1.35 for portrait
-      const heightFactor = isHorizontal ? 0.88 : (img.aspectRatio ? 1 / img.aspectRatio : 1.25);
+      const heightFactor = img.aspectRatio ? 1 / img.aspectRatio : 1.25;
 
       let minCol = 0;
       let minH = heights[0];
@@ -228,20 +224,18 @@ export const App: React.FC = () => {
         <h1 className="board-title">Kevil’s Visual board</h1>
       </header>
 
-      {/* Full-width 5-column board with uniform edge-to-edge gap */}
+      {/* Full-width board with uniform edge-to-edge gap */}
       <main className="board-container">
         <div className="board-grid">
           {columns.map((colImages, colIdx) => (
             <div key={`col-${colIdx}`} className="board-column">
               {colImages.map((img, imgIdx) => {
                 const isLCP = colIdx + imgIdx * columnCount < columnCount;
-                const isHorizontal = img.aspectRatio && img.aspectRatio >= 1.25;
 
                 return (
                   <div
                     key={img.id}
-                    data-id={img.id}
-                    className={`board-item ${isHorizontal ? 'is-horizontal' : ''}`}
+                    className="board-item"
                     onClick={() => setSelectedImage(img.url)}
                   >
                     <img
