@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 interface BoardImage {
   id: string;
@@ -8,28 +8,27 @@ interface BoardImage {
   height?: number;
 }
 
-// Initial images starting with Kevil's Visual-design artifacts
 const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '01',
     url: '/Visual-design/01.png',
     width: 2400,
     height: 1582,
-    aspectRatio: 2400 / 1582,
+    aspectRatio: 2400 / 1582, // 1.52 (Horizontal hero - spans 2 columns)
   },
   {
     id: '02',
     url: '/Visual-design/02.png',
     width: 1472,
     height: 1838,
-    aspectRatio: 1472 / 1838,
+    aspectRatio: 1472 / 1838, // 0.80 (Portrait)
   },
   {
     id: '03',
     url: '/Visual-design/03.png',
     width: 1472,
     height: 1650,
-    aspectRatio: 1472 / 1650,
+    aspectRatio: 1472 / 1650, // 0.89 (Portrait)
   },
   {
     id: '04',
@@ -44,7 +43,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '06',
     url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 933,
+    aspectRatio: 1400 / 933, // 1.50 (Horizontal - spans 2 columns)
   },
   {
     id: '07',
@@ -59,7 +58,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '09',
     url: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 1050,
+    aspectRatio: 1400 / 1050, // 1.33 (Horizontal - spans 2 columns)
   },
   {
     id: '10',
@@ -89,7 +88,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '15',
     url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 1050,
+    aspectRatio: 1400 / 1050, // 1.33 (Horizontal - spans 2 columns)
   },
   {
     id: '16',
@@ -104,7 +103,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '18',
     url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 1000,
+    aspectRatio: 1400 / 1000, // 1.40 (Horizontal - spans 2 columns)
   },
   {
     id: '19',
@@ -118,18 +117,36 @@ const DEFAULT_IMAGES: BoardImage[] = [
   }
 ];
 
+interface PositionedItem {
+  image: BoardImage;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  colSpan: number;
+}
+
 export const App: React.FC = () => {
   const [images, setImages] = useState<BoardImage[]>(DEFAULT_IMAGES);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [windowWidth, setWindowWidth] = useState(
-    typeof window !== 'undefined' ? window.innerWidth : 1920
-  );
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(() => {
+    return typeof window !== 'undefined' ? window.innerWidth : 1920;
+  });
 
-  // Track window resize to fluidly adjust columns & sizing
+  // Track container width precisely
   useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth);
+      } else {
+        setContainerWidth(window.innerWidth);
+      }
+    };
+
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
   }, []);
 
   // Keyboard escape for lightbox
@@ -141,7 +158,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Automatic GitHub repo sync: fetches new images committed to Visual-design
+  // Sync new images from GitHub
   useEffect(() => {
     const fetchGitHubImages = async () => {
       try {
@@ -170,89 +187,173 @@ export const App: React.FC = () => {
           });
         }
       } catch (err) {
-        // Fallback silently to local images
+        // Fallback silently
       }
     };
 
     fetchGitHubImages();
   }, []);
 
-  /**
-   * Fluid column logic:
-   * - Mobile (<680px): exactly 2 columns
-   * - iPad portrait (680px - 960px): 3 columns
-   * - iPad landscape / small laptop (961px - 1200px): 4 columns
-   * - Desktop & 27-inch displays (>= 1201px): 5 large, prominent columns
-   *   (On a 2560px 27" monitor, 5 columns make each artwork ~490px wide, big, bold, and detailed!)
-   */
+  const handleImageLoaded = (id: string, ratio: number) => {
+    setImages((prev) =>
+      prev.map((img) => (img.id === id && !img.aspectRatio ? { ...img, aspectRatio: ratio } : img))
+    );
+  };
+
+  // Determine column count:
+  // Mobile (<680px): 2 columns
+  // iPad portrait (<960px): 3 columns
+  // iPad landscape (<1200px): 4 columns
+  // Desktop & 27" screens: 5 columns
   const columnCount = useMemo(() => {
-    if (windowWidth < 680) return 2; // Mobile is always 2 columns
-    if (windowWidth < 960) return 3; // iPad portrait
-    if (windowWidth < 1200) return 4; // iPad landscape
-    return 5; // Desktop and 27" displays (5 large columns)
-  }, [windowWidth]);
+    if (containerWidth < 680) return 2;
+    if (containerWidth < 960) return 3;
+    if (containerWidth < 1200) return 4;
+    return 5;
+  }, [containerWidth]);
+
+  const gap = containerWidth < 680 ? 10 : 14;
 
   /**
-   * Smart Waterfall Distribution:
-   * Dynamically measures aspect ratios and places each artwork
-   * into whichever column currently has the minimum cumulative height.
+   * Smart Multi-Column Packery Layout:
+   * - Horizontal posters (aspectRatio >= 1.25, e.g. 3:2, 16:9, 01.png) span 2 columns!
+   * - Because horizontal ones span 2 columns, their width is ~2x and their height matches
+   *   the vertical posters perfectly (~500-600px tall), completely eliminating the "smaller" look!
+   * - Single-column posters fit into the shortest column.
    */
-  const columns = useMemo(() => {
-    const cols: BoardImage[][] = Array.from({ length: columnCount }, () => []);
-    const heights = new Array(columnCount).fill(0);
+  const { positionedItems, totalHeight } = useMemo(() => {
+    const colHeights = new Array(columnCount).fill(0);
+    const colWidth = (containerWidth - (columnCount - 1) * gap) / columnCount;
+
+    const items: PositionedItem[] = [];
 
     images.forEach((img) => {
-      // Calculate relative height multiplier (height / width)
-      const heightFactor = img.aspectRatio ? 1 / img.aspectRatio : 1.25;
+      const ratio = img.aspectRatio || 1.25;
+      // Allow horizontal / landscape posters to span 2 columns
+      const isWide = ratio >= 1.25 && columnCount >= 2;
+      const colSpan = isWide ? 2 : 1;
 
-      let minCol = 0;
-      let minH = heights[0];
-      for (let i = 1; i < columnCount; i++) {
-        if (heights[i] < minH) {
-          minH = heights[i];
-          minCol = i;
+      if (colSpan === 2) {
+        // Find adjacent pair of columns [i, i+1] that has the minimum peak height
+        let bestCol = 0;
+        let minPeak = Math.max(colHeights[0], colHeights[1]);
+
+        for (let i = 1; i <= columnCount - 2; i++) {
+          const peak = Math.max(colHeights[i], colHeights[i + 1]);
+          if (peak < minPeak) {
+            minPeak = peak;
+            bestCol = i;
+          }
         }
-      }
 
-      cols[minCol].push(img);
-      heights[minCol] += heightFactor;
+        const width = colWidth * 2 + gap;
+        const height = width / ratio;
+        const x = bestCol * (colWidth + gap);
+        const y = minPeak;
+
+        items.push({
+          image: img,
+          x,
+          y,
+          width,
+          height,
+          colSpan: 2,
+        });
+
+        // Update column heights for both occupied columns
+        const newH = y + height + gap;
+        colHeights[bestCol] = newH;
+        colHeights[bestCol + 1] = newH;
+      } else {
+        // Single column: find shortest column
+        let minCol = 0;
+        let minH = colHeights[0];
+
+        for (let i = 1; i < columnCount; i++) {
+          if (colHeights[i] < minH) {
+            minH = colHeights[i];
+            minCol = i;
+          }
+        }
+
+        const width = colWidth;
+        const height = width / ratio;
+        const x = minCol * (colWidth + gap);
+        const y = minH;
+
+        items.push({
+          image: img,
+          x,
+          y,
+          width,
+          height,
+          colSpan: 1,
+        });
+
+        colHeights[minCol] = y + height + gap;
+      }
     });
 
-    return cols;
-  }, [images, columnCount]);
+    const maxColHeight = Math.max(...colHeights);
+    return { positionedItems: items, totalHeight: maxColHeight > 0 ? maxColHeight - gap : 0 };
+  }, [images, columnCount, containerWidth, gap]);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', width: '100%' }}>
-      {/* Header: Centered, exact bold Poppins title */}
+      {/* Header: Centered bold Poppins title */}
       <header className="board-header">
         <h1 className="board-title">Kevil’s Visual board</h1>
       </header>
 
-      {/* Full-width board: outer padding is exactly equal to inter-image gap */}
+      {/* Full-width board with edge-to-edge padding equal to image gap */}
       <main className="board-container">
-        <div className="board-grid">
-          {columns.map((colImages, colIdx) => (
-            <div key={`col-${colIdx}`} className="board-column">
-              {colImages.map((img, imgIdx) => {
-                const isLCP = colIdx + imgIdx * columnCount < columnCount;
-                return (
-                  <div
-                    key={img.id}
-                    className="board-item"
-                    onClick={() => setSelectedImage(img.url)}
-                  >
-                    <img
-                      src={img.url}
-                      alt=""
-                      loading={isLCP ? undefined : 'lazy'}
-                      fetchPriority={isLCP ? 'high' : undefined}
-                      decoding="async"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+        <div
+          ref={containerRef}
+          style={{
+            position: 'relative',
+            width: '100%',
+            height: `${totalHeight}px`,
+            minHeight: '400px',
+          }}
+        >
+          {positionedItems.map((item, idx) => {
+            const isLCP = idx < columnCount;
+            return (
+              <div
+                key={item.image.id}
+                className="board-item"
+                style={{
+                  position: 'absolute',
+                  left: `${item.x}px`,
+                  top: `${item.y}px`,
+                  width: `${item.width}px`,
+                  height: `${item.height}px`,
+                  transition: 'transform 0.25s ease, opacity 0.25s ease',
+                }}
+                onClick={() => setSelectedImage(item.image.url)}
+              >
+                <img
+                  src={item.image.url}
+                  alt=""
+                  loading={isLCP ? undefined : 'lazy'}
+                  fetchPriority={isLCP ? 'high' : undefined}
+                  decoding="async"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                  onLoad={(e) => {
+                    const { naturalWidth, naturalHeight } = e.currentTarget;
+                    if (naturalWidth && naturalHeight) {
+                      handleImageLoaded(item.image.id, naturalWidth / naturalHeight);
+                    }
+                  }}
+                />
+              </div>
+            );
+          })}
         </div>
       </main>
 
