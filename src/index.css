@@ -193,19 +193,58 @@ html, body {
   transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.board-item:hover {
-  opacity: 0.94;
+/* Individual Image Skeleton Loader (Tailored per image aspect ratio) */
+.card-skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #f1f1f4;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.skeleton-shimmer {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(241, 241, 244, 0) 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(241, 241, 244, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .board-item img {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
   object-fit: cover;
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.board-item:hover img {
+.board-item img.img-loading {
+  opacity: 0;
+}
+
+.board-item img.img-loaded {
+  opacity: 1;
+}
+
+.board-item:hover img.img-loaded {
   transform: scale(1.015);
 }
 

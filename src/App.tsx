@@ -72,6 +72,126 @@ const getInitialImages = (): BoardImage[] => {
   });
 };
 
+const KNOWN_RATIOS: Record<string, number> = {
+  '01.png': 2400 / 1582,
+  '02.png': 1472 / 1838,
+  '03.png': 1472 / 1650,
+};
+
+const getImageRatio = (filename: string): number | undefined => {
+  if (KNOWN_RATIOS[filename]) return KNOWN_RATIOS[filename];
+  try {
+    const saved = JSON.parse(localStorage.getItem('kdb_image_ratios') || '{}');
+    if (saved[filename]) return saved[filename];
+  } catch {}
+  return undefined;
+};
+
+const saveImageRatio = (filename: string, ratio: number) => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('kdb_image_ratios') || '{}');
+    saved[filename] = ratio;
+    localStorage.setItem('kdb_image_ratios', JSON.stringify(saved));
+  } catch {}
+};
+
+interface BoardCardProps {
+  img: BoardImage;
+  isLCP: boolean;
+  isDevMode: boolean;
+  deletingId: string | null;
+  onSelect: (url: string) => void;
+  onDelete: (img: BoardImage, e: React.MouseEvent) => void;
+}
+
+const BoardCard: React.FC<BoardCardProps> = ({
+  img,
+  isLCP,
+  isDevMode,
+  deletingId,
+  onSelect,
+  onDelete,
+}) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<number | undefined>(img.aspectRatio);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Check if browser already has the image in memory/cache
+  useEffect(() => {
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setIsLoaded(true);
+      const natural = imgRef.current.naturalWidth / imgRef.current.naturalHeight;
+      if (!aspectRatio && natural) {
+        setAspectRatio(natural);
+      }
+    }
+  }, [img.url, aspectRatio]);
+
+  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    setIsLoaded(true);
+    const natural = e.currentTarget.naturalWidth / e.currentTarget.naturalHeight;
+    if (natural) {
+      setAspectRatio(natural);
+      const match = img.url.match(/Visual-design\/([^?#]+)/);
+      if (match) {
+        saveImageRatio(decodeURIComponent(match[1]), natural);
+      }
+    }
+  };
+
+  return (
+    <div
+      className="board-item"
+      style={{
+        aspectRatio: aspectRatio ? `${aspectRatio}` : '0.8',
+      }}
+      onClick={() => onSelect(img.url)}
+    >
+      {/* Individual Skeleton Loader tailored to this image's aspect ratio */}
+      {!isLoaded && (
+        <div className="card-skeleton" aria-hidden="true">
+          <div className="skeleton-shimmer" />
+        </div>
+      )}
+
+      <img
+        ref={imgRef}
+        src={img.url}
+        alt=""
+        className={`board-img ${isLoaded ? 'img-loaded' : 'img-loading'}`}
+        loading={isLCP ? undefined : 'lazy'}
+        fetchPriority={isLCP ? 'high' : undefined}
+        decoding="async"
+        onLoad={handleLoad}
+      />
+
+      {/* Dev-Only Hover Overlay with Delete Button (Figma node 14:2121) */}
+      {isDevMode && (
+        <div className="dev-card-overlay">
+          <button
+            className="dev-delete-btn"
+            onClick={(e) => onDelete(img, e)}
+            title="Delete poster from GitHub"
+            disabled={deletingId === img.id}
+          >
+            {deletingId === img.id ? (
+              <>
+                <Loader2 size={18} className="spin-icon" />
+                <span>Deleting...</span>
+              </>
+            ) : (
+              <>
+                <Trash2 size={18} />
+                <span>Delete</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const App: React.FC = () => {
   const [images, setImages] = useState<BoardImage[]>(getInitialImages);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -182,6 +302,7 @@ export const App: React.FC = () => {
           .map((file: any) => ({
             id: `gh-${file.name}`,
             url: `https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/Visual-design/${file.name}?v=${file.sha?.slice(0, 7) || Date.now()}`,
+            aspectRatio: getImageRatio(file.name),
           }));
 
         setImages(remoteImages);
@@ -265,11 +386,29 @@ export const App: React.FC = () => {
       // Ensure this filename is not marked as deleted
       unrecordDeletedFile(filename);
 
+      // Measure natural dimensions so skeleton and layout are instantly exact
+      const dims = await new Promise<{ width: number; height: number; aspectRatio: number }>((resolve) => {
+        const i = new window.Image();
+        i.onload = () =>
+          resolve({
+            width: i.naturalWidth,
+            height: i.naturalHeight,
+            aspectRatio: i.naturalWidth / i.naturalHeight,
+          });
+        i.onerror = () => resolve({ width: 1200, height: 1500, aspectRatio: 0.8 });
+        i.src = uploadPreview || URL.createObjectURL(uploadFile);
+      });
+
+      saveImageRatio(filename, dims.aspectRatio);
+
       const cdnUrl = `https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/Visual-design/${filename}`;
 
       const newImg: BoardImage = {
         id: `gh-${filename}`,
         url: cdnUrl,
+        width: dims.width,
+        height: dims.height,
+        aspectRatio: dims.aspectRatio,
       };
 
       // Add to board immediately
@@ -520,43 +659,15 @@ export const App: React.FC = () => {
                 const isLCP = colIdx + imgIdx * columnCount < columnCount;
 
                 return (
-                  <div
+                  <BoardCard
                     key={img.id}
-                    className="board-item"
-                    onClick={() => setSelectedImage(img.url)}
-                  >
-                    <img
-                      src={img.url}
-                      alt=""
-                      loading={isLCP ? undefined : 'lazy'}
-                      fetchPriority={isLCP ? 'high' : undefined}
-                      decoding="async"
-                    />
-
-                    {/* Dev-Only Hover Overlay with Delete Button (Figma node 14:2121) */}
-                    {isDevMode && (
-                      <div className="dev-card-overlay">
-                        <button
-                          className="dev-delete-btn"
-                          onClick={(e) => handleDeleteImage(img, e)}
-                          title="Delete poster from GitHub"
-                          disabled={deletingId === img.id}
-                        >
-                          {deletingId === img.id ? (
-                            <>
-                              <Loader2 size={18} className="spin-icon" />
-                              <span>Deleting...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Trash2 size={18} />
-                              <span>Delete</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                    img={img}
+                    isLCP={isLCP}
+                    isDevMode={isDevMode}
+                    deletingId={deletingId}
+                    onSelect={setSelectedImage}
+                    onDelete={handleDeleteImage}
+                  />
                 );
               })}
             </div>
