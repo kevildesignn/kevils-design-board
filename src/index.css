@@ -49,9 +49,9 @@ html, body {
 /* Full Width Grid Container with padding equal to grid gap */
 .board-container {
   width: 100%;
-  max-width: 100%; /* Full width edge-to-edge */
+  max-width: 100%;
   margin: 0;
-  padding: 0 var(--grid-gap) 60px var(--grid-gap); /* Outer padding matches the gap between images */
+  padding: 0 var(--grid-gap) 60px var(--grid-gap);
 }
 
 .board-grid {
@@ -93,6 +93,47 @@ html, body {
 
 .board-item:hover img {
   transform: scale(1.015);
+}
+
+/* Horizontal artworks: Middle height sweet spot (neither too small nor giant) */
+.board-item.is-horizontal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+@media (max-width: 680px) {
+  .board-item.is-horizontal {
+    min-height: 220px;
+  }
+}
+
+@media (min-width: 681px) and (max-width: 1200px) {
+  .board-item.is-horizontal {
+    min-height: 310px;
+  }
+}
+
+@media (min-width: 1201px) {
+  .board-item.is-horizontal {
+    min-height: 410px; /* Exact middle height between 320px and 650px on 27" */
+  }
+}
+
+.board-item.is-horizontal img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Special treatment for artwork 01 (manifesto with text): preserve complete art on cream canvas */
+.board-item[data-id="01"] {
+  background-color: #e8e4d9;
+}
+.board-item[data-id="01"] img {
+  object-fit: contain;
+  padding: 12px;
 }
 
 /* Lightbox Modal (Clean, Minimal, Pure Image) */
@@ -160,7 +201,6 @@ html, body {
   to { opacity: 1; transform: scale(1); }
 }
 
-/* Mobile adjustments */
 @media (max-width: 680px) {
   .board-header {
     padding: 40px var(--grid-gap) 24px;

@@ -15,21 +15,21 @@ const DEFAULT_IMAGES: BoardImage[] = [
     url: '/Visual-design/01.png',
     width: 2400,
     height: 1582,
-    aspectRatio: 2400 / 1582, // Horizontal
+    aspectRatio: 2400 / 1582, // 1.52 (Horizontal - middle height)
   },
   {
     id: '02',
     url: '/Visual-design/02.png',
     width: 1472,
     height: 1838,
-    aspectRatio: 1472 / 1838, // Portrait
+    aspectRatio: 1472 / 1838, // 0.80 (Portrait)
   },
   {
     id: '03',
     url: '/Visual-design/03.png',
     width: 1472,
     height: 1650,
-    aspectRatio: 1472 / 1650, // Portrait
+    aspectRatio: 1472 / 1650, // 0.89 (Portrait)
   },
   {
     id: '04',
@@ -44,7 +44,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '06',
     url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 933, // Horizontal
+    aspectRatio: 1400 / 933, // 1.50 (Horizontal - middle height)
   },
   {
     id: '07',
@@ -59,7 +59,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '09',
     url: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 1050, // Horizontal
+    aspectRatio: 1400 / 1050, // 1.33 (Horizontal - middle height)
   },
   {
     id: '10',
@@ -89,7 +89,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '15',
     url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 1050, // Horizontal
+    aspectRatio: 1400 / 1050, // 1.33 (Horizontal - middle height)
   },
   {
     id: '16',
@@ -104,7 +104,7 @@ const DEFAULT_IMAGES: BoardImage[] = [
   {
     id: '18',
     url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1400&q=85',
-    aspectRatio: 1400 / 1000, // Horizontal
+    aspectRatio: 1400 / 1000, // 1.40 (Horizontal - middle height)
   },
   {
     id: '19',
@@ -178,11 +178,11 @@ export const App: React.FC = () => {
   }, []);
 
   /**
-   * Fluid column count based on user instructions:
+   * Column count:
    * - Mobile (<680px): exactly 2 columns
    * - iPad portrait (680px - 960px): 3 columns
    * - iPad landscape (961px - 1200px): 4 columns
-   * - Desktop & 27" screens (>= 1201px): 5 columns (all single-column width)
+   * - Desktop & 27" screens (>= 1201px): 5 columns
    */
   const columnCount = useMemo(() => {
     if (windowWidth < 680) return 2;
@@ -192,24 +192,18 @@ export const App: React.FC = () => {
   }, [windowWidth]);
 
   /**
-   * Smart Rhythm Waterfall:
-   * - Every artwork stays in 1 column (no giant 2-column span).
-   * - Distributes horizontal and portrait artworks evenly across all columns,
-   *   preventing short horizontal images from clustering in one column.
-   * - Alternates tall and short items in each column matching the Figma wireframe rhythm!
+   * Balanced Column Distribution:
+   * Horizontal artworks have a boosted height factor (~0.88), placing them in the
+   * sweet spot between small and giant, while keeping the columns level.
    */
   const columns = useMemo(() => {
     const cols: BoardImage[][] = Array.from({ length: columnCount }, () => []);
     const heights = new Array(columnCount).fill(0);
 
-    // Sort or interleave images so horizontal ones are smoothly distributed
-    // Start with user's images 01, 02, 03 placed in first row
     images.forEach((img) => {
-      // Calculate height factor (height / width)
-      // Clamped slightly so horizontal items don't feel too tiny in height
-      const rawFactor = img.aspectRatio ? 1 / img.aspectRatio : 1.25;
-      // Gently balance height factor between 0.72 (horizontal) and 1.45 (portrait)
-      const heightFactor = Math.max(0.72, Math.min(1.45, rawFactor));
+      const isHorizontal = img.aspectRatio && img.aspectRatio >= 1.25;
+      // In the middle: ~0.88 factor for horizontal, ~1.25 to 1.35 for portrait
+      const heightFactor = isHorizontal ? 0.88 : (img.aspectRatio ? 1 / img.aspectRatio : 1.25);
 
       let minCol = 0;
       let minH = heights[0];
@@ -241,10 +235,13 @@ export const App: React.FC = () => {
             <div key={`col-${colIdx}`} className="board-column">
               {colImages.map((img, imgIdx) => {
                 const isLCP = colIdx + imgIdx * columnCount < columnCount;
+                const isHorizontal = img.aspectRatio && img.aspectRatio >= 1.25;
+
                 return (
                   <div
                     key={img.id}
-                    className="board-item"
+                    data-id={img.id}
+                    className={`board-item ${isHorizontal ? 'is-horizontal' : ''}`}
                     onClick={() => setSelectedImage(img.url)}
                   >
                     <img
