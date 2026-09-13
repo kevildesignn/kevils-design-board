@@ -31,6 +31,13 @@ const DEFAULT_IMAGES: BoardImage[] = [
     width: 1472,
     height: 1650,
     aspectRatio: 1472 / 1650,
+  },
+  {
+    id: '04',
+    url: 'https://cdn.jsdelivr.net/gh/kevildesignn/kevils-design-board@main/published-designs/04.png',
+    width: 735,
+    height: 858,
+    aspectRatio: 735 / 858,
   }
 ];
 
@@ -76,6 +83,7 @@ const KNOWN_RATIOS: Record<string, number> = {
   '01.png': 2400 / 1582,
   '02.png': 1472 / 1838,
   '03.png': 1472 / 1650,
+  '04.png': 735 / 858,
 };
 
 const getImageRatio = (filename: string): number | undefined => {
@@ -424,15 +432,17 @@ export const App: React.FC = () => {
         const files = await res.json();
         if (!Array.isArray(files)) return;
 
-        const deleted = getDeletedFiles();
+        // Files returned from GitHub are confirmed to exist; clean up any stale deleted record
+        files.forEach((file: any) => {
+          if (file.name) unrecordDeletedFile(file.name);
+        });
 
         const remoteImages: BoardImage[] = files
           .filter((file: any) => {
             const ext = file.name.split('.').pop()?.toLowerCase();
             return (
               file.type === 'file' &&
-              ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext) &&
-              !deleted.includes(file.name)
+              ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)
             );
           })
           .map((file: any) => ({
