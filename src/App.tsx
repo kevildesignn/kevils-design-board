@@ -355,8 +355,12 @@ export const App: React.FC = () => {
     return localStorage.getItem('kdb_admin_authenticated') === 'true';
   });
 
-  // Admin route active if pathname starts with /admin or is /admin
-  const isAdminRoute = currentPath.toLowerCase().startsWith('/admin');
+  // Admin route active if pathname starts with /admin or is /admin (also supports #/admin or #admin)
+  const isAdminRoute =
+    currentPath.toLowerCase().startsWith('/admin') ||
+    (typeof window !== 'undefined' &&
+      (window.location.hash.toLowerCase().startsWith('#/admin') ||
+        window.location.hash.toLowerCase().startsWith('#admin')));
 
   // Dev/Admin mode controls are active ONLY when user is authenticated on the admin route
   const isDevMode = isAdminRoute && isAdminAuthenticated;
@@ -366,7 +370,11 @@ export const App: React.FC = () => {
       setCurrentPath(window.location.pathname);
     };
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
   }, []);
 
   const navigateTo = (path: string) => {
@@ -775,7 +783,7 @@ export const App: React.FC = () => {
         <h1 className="board-title">Kevil’s Visual board</h1>
 
         {/* Admin Header Controls: visible only when authenticated on /admin */}
-        {isDevMode ? (
+        {isDevMode && (
           <div className="dev-upload-badge">
             <button
               className="dev-upload-btn"
@@ -800,19 +808,6 @@ export const App: React.FC = () => {
               <span>Log Out</span>
             </button>
           </div>
-        ) : (
-          isAdminAuthenticated && (
-            <div className="dev-upload-badge">
-              <button
-                className="dev-preview-toggle-btn"
-                onClick={() => navigateTo('/admin')}
-                title="Go to Admin Panel"
-              >
-                <Lock size={12} />
-                <span>Admin Dashboard</span>
-              </button>
-            </div>
-          )
         )}
       </header>
 
