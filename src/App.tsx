@@ -393,11 +393,15 @@ export const App: React.FC = () => {
 
   // Serverless backend handles GitHub commits securely without browser tokens
 
-  // Track window resize to fluidly adjust columns
+  // Track window resize & orientation changes to fluidly adjust columns
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, []);
 
   // Keyboard escape for lightbox & modal
@@ -668,15 +672,60 @@ export const App: React.FC = () => {
   };
 
   /**
-   * Adaptive column count:
-   * - Mobile (<680px): exactly 2 columns
-   * - iPad portrait (<1000px): 3 columns
-   * - Desktop & 27" screens: 5 columns
+   * Device & Screen Adaptive Column Architecture:
+   * 1. Mobile (Portrait & Landscape): exactly 2 columns
+   * 2. iPad / Tablets (Portrait & Landscape): exactly 3 columns
+   * 3. Laptops & Standard Desktops (MacBook 13", 14", 16", ~1200px - 1999px): exactly 4 columns
+   * 4. 24" to 27" Displays (1440p QHD / 4K / 5K scaled, 2000px - 2800px): exactly 5 columns
+   * 5. Ultra-wide & 32"+ displays (>2800px): 6 columns and scales dynamically up
    */
   const columnCount = useMemo(() => {
-    if (windowWidth < 680) return 2;
-    if (windowWidth < 1000) return 3;
-    return 5;
+    if (typeof window === 'undefined') return 4;
+
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const maxTouch = typeof navigator !== 'undefined' ? navigator.maxTouchPoints : 0;
+
+    // Detect mobile phone (iPhone, Android phone, etc.)
+    const isPhone =
+      /iPhone|iPod|Android.*Mobile|Windows Phone|webOS|BlackBerry/i.test(ua) ||
+      (windowWidth < 768 && maxTouch > 0);
+
+    // Detect tablet (iPad, Android tablet)
+    // Note: iPadOS on Safari reports as "MacIntel" with maxTouchPoints > 1
+    const isTablet =
+      /iPad/i.test(ua) ||
+      (typeof navigator !== 'undefined' && navigator.platform === 'MacIntel' && maxTouch > 1) ||
+      (/Android/i.test(ua) && !/Mobile/i.test(ua));
+
+    // 1. Mobile phones: 2 columns in BOTH vertical and horizontal orientations
+    if (isPhone || windowWidth < 768) {
+      return 2;
+    }
+
+    // 2. iPad / Tablets: 3 columns in BOTH vertical and horizontal orientations
+    if (isTablet) {
+      return 3;
+    }
+
+    // Desktop viewports:
+    // Narrow desktop window / tablet width (< 1200px): 3 columns
+    if (windowWidth < 1200) {
+      return 3;
+    }
+
+    // MacBook 13", 14", 16", and standard 1080p desktop (1200px up to 1999px): 4 columns
+    if (windowWidth < 2000) {
+      return 4;
+    }
+
+    // 24" to 27" monitors (2000px up to 2800px, e.g. 1440p QHD / 2560px iMac / Studio Display): 5 columns
+    if (windowWidth <= 2800) {
+      return 5;
+    }
+
+    // 32"+ and Ultra-wide monitors (> 2800px): 6 columns + math for larger widths
+    const extraCols = Math.floor((windowWidth - 2800) / 600);
+    return Math.min(8, 6 + extraCols);
   }, [windowWidth]);
 
   /**
